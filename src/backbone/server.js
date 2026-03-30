@@ -50,9 +50,59 @@ app.use(cors());
 const stringSimilarity = require('string-similarity');
 
 app.get('/search', async (req, res) => {
-  const q = req.query.query;
-  const author = req.query.author;
+
+  // Clean input: query (title) and author
+  let q = req.query.query;
+  let author = req.query.author;
   if (!q) return res.status(400).json({ error: 'query required' });
+
+
+  // Extract author from query if not provided (before title cleanup)
+  if (!author && q.includes("-")) {
+    author = q.split("-")[0].replace(/\./g, " ").trim();
+  } else if (author) {
+    author = author.split("-")[0].replace(/\./g, " ").trim();
+  }
+
+  // Clean title (query) input
+  let cleanedTitle = q;
+  if (!/^".*"$/.test(cleanedTitle)) {
+    cleanedTitle = cleanedTitle
+      .replace(/\d+kbps/gi, '')
+      .replace(/\bVBR\b.*$/gi, '')
+      .replace(/\(?\s*czyt[^)]*\)?/gi, '')
+      .replace(/superprodukcja/gi, '')
+      .replace(/^[\w\s.-]+-\s*/g, '')
+      .replace(/.*-/, '');
+    // Tom XX pattern
+    if (/[[\(\[]?\s*T(?:om)?[\s.]?\d{1,3}\s*[\)\]]?\s*$/i.test(cleanedTitle)) {
+      // Tom is at end - keep
+    } else {
+      cleanedTitle = cleanedTitle.replace(/^.*?[[\(\[]?\s*T(?:om)?[\s.]?\d{1,3}\s*[\)\]]?\s+/i, '');
+    }
+    cleanedTitle = cleanedTitle
+      .replace(/^\(\d{1,3}\)\s*/g, '')
+      .replace(/\(.*?\)/g, '')
+      .replace(/\[.*?\]/g, '')
+      .replace(/[^\p{L}\d]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  } else {
+    cleanedTitle = cleanedTitle.replace(/^"(.*)"$/, '$1');
+  }
+  q = cleanedTitle;
+
+  // Clean author input (basic trim, can extend if needed)
+  if (author) {
+    author = author.trim();
+  }
+
+  // Extract author from query if not provided
+  if (!author && q.includes("-")) {
+    author = q.split("-")[0].replace(/\./g, " ").trim();
+  } else if (author) {
+    author = author.split("-")[0].replace(/\./g, " ").trim();
+  }
 
   const tasks = providers.map(async (p) => {
     try {
