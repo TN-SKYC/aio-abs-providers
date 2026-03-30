@@ -11,21 +11,21 @@ app.use(cors());
 // No authorization required for local provider servers
 // (was rejecting requests with missing Authorization header)
 
-// Axios 429 retry interceptor (kept from original)
+// Axios 429/403 retry interceptor (kept from original)
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 axios.interceptors.response.use(
   (response) => response,
   async (error) => {
     const { config, response } = error;
-    if (response?.status === 429) {
+    if (response?.status === 429 || response?.status === 403) {
       config._retryCount = (config._retryCount || 0) + 1;
       if (config._retryCount <= 5) {
         const delayMs = 10000 + Math.floor(Math.random() * 10000);
-        console.log(`[429] Retry ${config._retryCount}/5 after ${Math.round(delayMs/1000)}s`);
+        console.log(`[429/403] Retry ${config._retryCount}/5 after ${Math.round(delayMs/1000)}s`);
         await sleep(delayMs);
         return axios.request(config);
       }
-      console.error(`[429] Max retries exceeded for ${config.url}`);
+      console.error(`[429/403] Max retries exceeded for ${config.url}`);
     }
     throw error;
   }
