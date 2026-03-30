@@ -1,3 +1,8 @@
+const axios = require('axios');
+const cheerio = require('cheerio');
+const stringSimilarity = require('string-similarity');
+const NodeCache = require('node-cache');
+
 // Axios 403/429 retry interceptor
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 axios.interceptors.response.use(
@@ -17,10 +22,6 @@ axios.interceptors.response.use(
     throw error;
   }
 );
-const axios = require('axios');
-const cheerio = require('cheerio');
-const stringSimilarity = require('string-similarity');
-const NodeCache = require('node-cache');
 
 class LubimyCzytacProvider {
   constructor(options = {}) {
