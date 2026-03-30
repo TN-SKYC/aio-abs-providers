@@ -1,3 +1,22 @@
+// Axios 403/429 retry interceptor
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+axios.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const { config, response } = error;
+    if (response?.status === 429 || response?.status === 403) {
+      config._retryCount = (config._retryCount || 0) + 1;
+      if (config._retryCount <= 5) {
+        const delayMs = 10000 + Math.floor(Math.random() * 10000);
+        console.log(`[${response.status}] Retry ${config._retryCount}/5 after ${Math.round(delayMs/1000)}s`);
+        await sleep(delayMs);
+        return axios.request(config);
+      }
+      console.error(`[${response.status}] Max retries exceeded for ${config.url}`);
+    }
+    throw error;
+  }
+);
 const axios = require('axios');
 const cheerio = require('cheerio');
 const stringSimilarity = require('string-similarity');
