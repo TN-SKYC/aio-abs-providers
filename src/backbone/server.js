@@ -167,7 +167,20 @@ app.get('/search', async (req, res) => {
       combinedSimilarity = (titleSimilarity * titleWeight) + (bestAuthorSim * authorWeight);
     }
 
-    return { ...m, similarity: combinedSimilarity };
+    // Penalty for missing ISBN
+    let identifiers = m.identifiers || {};
+    if (!identifiers.isbn || identifiers.isbn === '') {
+      combinedSimilarity *= 0.99;
+    }
+
+    // Assign fake ISBN '0' if similarity is high and ISBN is missing
+    let isbn = identifiers.isbn;
+    if ((!isbn || isbn === '') && combinedSimilarity >= 0.85) {
+      isbn = '0';
+      identifiers = { ...identifiers, isbn };
+    }
+
+    return { ...m, similarity: combinedSimilarity, identifiers };
   });
 
   // Apply global allowBooks/allowAudiobooks filters from config
