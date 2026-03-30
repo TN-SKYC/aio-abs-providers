@@ -188,6 +188,11 @@ app.get('/search', async (req, res) => {
     console.log(`[sim] ${item.title} | author(s): ${item.authors ? item.authors.join(', ') : ''} | similarity: ${item.similarity}`);
   }
 
+  // Set top-level isbn field for each result
+  for (const item of scored) {
+    item.isbn = (item.identifiers && item.identifiers.isbn) || (item.similarity >= 0.85 ? '0' : undefined);
+  }
+
   // Apply global allowBooks/allowAudiobooks filters from config
   const allowBooks = config.global && typeof config.global.allowBooks !== 'undefined' ? !!config.global.allowBooks : true;
   const allowAudiobooks = config.global && typeof config.global.allowAudiobooks !== 'undefined' ? !!config.global.allowAudiobooks : true;
