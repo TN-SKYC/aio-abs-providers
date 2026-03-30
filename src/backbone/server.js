@@ -59,22 +59,45 @@ app.get('/search', async (req, res) => {
   // If input is quoted, forward as-is (no cleaning, no author extraction)
   if (/^".*"$/.test(q)) {
     q = q.replace(/^"(.*)"$/, '$1');
-    // Optionally, trim author if provided
     if (author) author = author.trim();
   } else {
-    // Extract author from query if not provided (before title cleanup)
-    if (!author && q.includes("-")) {
-      author = q.split("-")[0].replace(/\./g, " ").trim();
-    } else if (author) {
-      author = author.split("-")[0].replace(/\./g, " ").trim();
+    // 1. Remove 'czyta' and similar reader info first
+    // Match: czyt, czyta, czyt., czytaja, czytają, etc.
+    let readerRegex = /(\(\s*czyt[\p{L}\.]?[^)]*\))|(czyt[\p{L}\.]?\s+[\p{L}\-\. ]+)/giu;
+    q = q.replace(readerRegex, '').trim();
+
+    // 2. Count hyphens and extract author/title
+    let hyphenIndices = [];
+    for (let i = 0; i < q.length; ++i) {
+      if (q[i] === '-') hyphenIndices.push(i);
+    }
+    if (!author && hyphenIndices.length >= 1) {
+      if (hyphenIndices.length === 1) {
+        // Old logic: split on first hyphen
+        author = q.slice(0, hyphenIndices[0]).replace(/\./g, ' ').trim();
+        q = q.slice(hyphenIndices[0] + 1).trim();
+      } else {
+        // New logic: check words before 2nd hyphen
+        const secondHyphen = hyphenIndices[1];
+        const beforeSecond = q.slice(0, secondHyphen);
+        // Split by non-word chars (hyphen, dot, whitespace, etc)
+        const words = beforeSecond.split(/[^\p{L}\d]+/u).filter(Boolean);
+        if (words.length >= 3) {
+          author = beforeSecond.replace(/\./g, ' ').trim();
+          q = q.slice(secondHyphen + 1).trim();
+        } else {
+          // fallback: old logic (first hyphen)
+          author = q.slice(0, hyphenIndices[0]).replace(/\./g, ' ').trim();
+          q = q.slice(hyphenIndices[0] + 1).trim();
+        }
+      }
     }
 
-    // Clean title (query) input
+    // 3. Rest of the cleaning (title)
     let cleanedTitle = q;
     cleanedTitle = cleanedTitle
       .replace(/\d+kbps/gi, '')
       .replace(/\bVBR\b.*$/gi, '')
-      .replace(/\(?\s*czyt[^)]*\)?/gi, '')
       .replace(/superprodukcja/gi, '')
       .replace(/^[\w\s.-]+-\s*/g, '')
       .replace(/.*-/, '');
@@ -96,13 +119,6 @@ app.get('/search', async (req, res) => {
     // Clean author input (basic trim, can extend if needed)
     if (author) {
       author = author.trim();
-    }
-
-    // Extract author from query if not provided
-    if (!author && q.includes("-")) {
-      author = q.split("-")[0].replace(/\./g, " ").trim();
-    } else if (author) {
-      author = author.split("-")[0].replace(/\./g, " ").trim();
     }
   }
 
