@@ -56,17 +56,21 @@ app.get('/search', async (req, res) => {
   let author = req.query.author;
   if (!q) return res.status(400).json({ error: 'query required' });
 
+  // If input is quoted, forward as-is (no cleaning, no author extraction)
+  if (/^".*"$/.test(q)) {
+    q = q.replace(/^"(.*)"$/, '$1');
+    // Optionally, trim author if provided
+    if (author) author = author.trim();
+  } else {
+    // Extract author from query if not provided (before title cleanup)
+    if (!author && q.includes("-")) {
+      author = q.split("-")[0].replace(/\./g, " ").trim();
+    } else if (author) {
+      author = author.split("-")[0].replace(/\./g, " ").trim();
+    }
 
-  // Extract author from query if not provided (before title cleanup)
-  if (!author && q.includes("-")) {
-    author = q.split("-")[0].replace(/\./g, " ").trim();
-  } else if (author) {
-    author = author.split("-")[0].replace(/\./g, " ").trim();
-  }
-
-  // Clean title (query) input
-  let cleanedTitle = q;
-  if (!/^".*"$/.test(cleanedTitle)) {
+    // Clean title (query) input
+    let cleanedTitle = q;
     cleanedTitle = cleanedTitle
       .replace(/\d+kbps/gi, '')
       .replace(/\bVBR\b.*$/gi, '')
@@ -87,21 +91,19 @@ app.get('/search', async (req, res) => {
       .replace(/[^\p{L}\d]/gu, ' ')
       .replace(/\s+/g, ' ')
       .trim();
-  } else {
-    cleanedTitle = cleanedTitle.replace(/^"(.*)"$/, '$1');
-  }
-  q = cleanedTitle;
+    q = cleanedTitle;
 
-  // Clean author input (basic trim, can extend if needed)
-  if (author) {
-    author = author.trim();
-  }
+    // Clean author input (basic trim, can extend if needed)
+    if (author) {
+      author = author.trim();
+    }
 
-  // Extract author from query if not provided
-  if (!author && q.includes("-")) {
-    author = q.split("-")[0].replace(/\./g, " ").trim();
-  } else if (author) {
-    author = author.split("-")[0].replace(/\./g, " ").trim();
+    // Extract author from query if not provided
+    if (!author && q.includes("-")) {
+      author = q.split("-")[0].replace(/\./g, " ").trim();
+    } else if (author) {
+      author = author.split("-")[0].replace(/\./g, " ").trim();
+    }
   }
 
   const tasks = providers.map(async (p) => {
