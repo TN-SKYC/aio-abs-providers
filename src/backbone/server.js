@@ -173,11 +173,13 @@ app.get('/search', async (req, res) => {
       combinedSimilarity *= 0.99;
     }
 
+
     // Assign fake ISBN '0' if similarity is high and ISBN is missing
     let isbn = identifiers.isbn;
     if ((!isbn || isbn === '') && combinedSimilarity >= 0.85) {
       isbn = '0';
       identifiers = { ...identifiers, isbn };
+      console.log(`[isbn] Assigned fake ISBN '0' to: ${m.title} | author(s): ${m.authors ? m.authors.join(', ') : ''} | similarity: ${combinedSimilarity}`);
     }
 
     return { ...m, similarity: combinedSimilarity, identifiers };
@@ -525,7 +527,21 @@ app.get('/search', async (req, res) => {
         // keep legacy seriesIndex field for compatibility
         merged.seriesIndex = (typeof seriesIndex !== 'undefined' && seriesIndex !== null) ? seriesIndex : null;
 
-  const isbnPick = pickIdentifierAndSource('isbn'); merged.isbn = isbnPick.value || undefined;
+        const isbnPick = pickIdentifierAndSource('isbn');
+        // If no real ISBN, but all topGroup have high similarity, set merged.isbn = '0'
+        if (!isbnPick.value) {
+          const allHighSimNoIsbn = topGroup.every(i => (i.similarity >= 0.85) && (!i.identifiers || !i.identifiers.isbn || i.identifiers.isbn === ''));
+          if (allHighSimNoIsbn) {
+            merged.isbn = '0';
+            merged.identifiers = merged.identifiers || {};
+            merged.identifiers.isbn = '0';
+            console.log(`[isbn] Assigned fake ISBN '0' to merged result: ${merged.title} | author(s): ${merged.authors ? merged.authors.join(', ') : ''} | similarity: ${merged.similarity}`);
+          } else {
+            merged.isbn = undefined;
+          }
+        } else {
+          merged.isbn = isbnPick.value;
+        }
   const asinPick = pickIdentifierAndSource('asin'); merged.asin = asinPick.value || undefined;
   const durationPick = pickFieldAndSource('duration'); merged.duration = durationPick.value || undefined;
   merged.url = merged.url || '';
