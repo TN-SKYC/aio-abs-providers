@@ -183,6 +183,11 @@ app.get('/search', async (req, res) => {
     return { ...m, similarity: combinedSimilarity, identifiers };
   });
 
+  // Log similarity for each result
+  for (const item of scored) {
+    console.log(`[sim] ${item.title} | author(s): ${item.authors ? item.authors.join(', ') : ''} | similarity: ${item.similarity}`);
+  }
+
   // Apply global allowBooks/allowAudiobooks filters from config
   const allowBooks = config.global && typeof config.global.allowBooks !== 'undefined' ? !!config.global.allowBooks : true;
   const allowAudiobooks = config.global && typeof config.global.allowAudiobooks !== 'undefined' ? !!config.global.allowAudiobooks : true;
