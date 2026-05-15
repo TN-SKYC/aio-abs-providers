@@ -61,9 +61,14 @@ app.get('/search', async (req, res) => {
     q = q.replace(/^"(.*)"$/, '$1');
     if (author) author = author.trim();
   } else {
+    // 0. Replace separators with spaces 
+    q = q.replace(/[.,`'_;:"]/g, ' ');
+
     // 1. Remove 'czyta' and similar reader info first
     // Match: czyt, czyta, czyt., czytaja, czytają, etc.
-    let readerRegex = /(\(\s*czyt[\p{L}\.]?[^)]*\))|(czyt[\p{L}\.]?\s+[\p{L}\-\. ]+)/giu;
+    // Old version:
+	// let readerRegex = /(\(\s*czyt[\p{L}\.]?[^)]*\))|(czyt[\p{L}\.]?\s+[\p{L}\-\. ]+)/giu;
+	let readerRegex = /(\(\s*czyt[\p{L}]{0,3}\b[^)]*\))|(czyt[\p{L}]{0,3}\b\s+[\p{L}\-\. ]+)/giu;
     q = q.replace(readerRegex, '').trim();
 
     // 2. Count hyphens and extract author/title
