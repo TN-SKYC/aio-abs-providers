@@ -190,7 +190,9 @@ class LubimyCzytacProvider {
         publisher = '';
       }
       const languages = $('dt:contains("Język:")').next('dd').text().trim().split(', ') || [];
-      const description = $('.collapse-content').html() || $('meta[property="og:description"]').attr('content') || '';
+//    Previous version:
+//    const description = $('.collapse-content').html() || $('meta[property="og:description"]').attr('content') || '';
+      const description = $('#book-description').html() || $('meta[property="og:description"]').attr('content') || '';
       const seriesElement = $('span.d-none.d-sm-block.mt-1:contains("Cykl:")').find('a').text().trim();
       const series = this.extractSeriesName(seriesElement);
       const seriesIndex = this.extractSeriesIndex(seriesElement);

@@ -19,6 +19,15 @@ try {
 
 let providers = [];
 
+function removePolishDiacritics(str) {
+  if (!str) return '';
+  const mapping = {
+    'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
+    'Ą': 'A', 'Ć': 'C', 'Ę': 'E', 'Ł': 'L', 'Ń': 'N', 'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z'
+  };
+  return str.replace(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, match => mapping[match]);
+}
+
 function reloadProviders(cfg) {
   providers = [];
   for (const [name, opts] of Object.entries((cfg && cfg.providers) || {})) {
@@ -56,14 +65,22 @@ app.get('/search', async (req, res) => {
   let author = req.query.author;
   if (!q) return res.status(400).json({ error: 'query required' });
 
+  // Track if the input was quoted
+  const isQuoted = /^".*"$/.test(q);
+
   // If input is quoted, forward as-is (no cleaning, no author extraction)
   if (/^".*"$/.test(q)) {
     q = q.replace(/^"(.*)"$/, '$1');
     if (author) author = author.trim();
   } else {
+    // 0. Replace separators with spaces 
+    q = q.replace(/[.,`'_;:"]/g, ' ');
+
     // 1. Remove 'czyta' and similar reader info first
     // Match: czyt, czyta, czyt., czytaja, czytają, etc.
-    let readerRegex = /(\(\s*czyt[\p{L}\.]?[^)]*\))|(czyt[\p{L}\.]?\s+[\p{L}\-\. ]+)/giu;
+    // Old version:
+	// let readerRegex = /(\(\s*czyt[\p{L}\.]?[^)]*\))|(czyt[\p{L}\.]?\s+[\p{L}\-\. ]+)/giu;
+	let readerRegex = /(\(\s*czyt[\p{L}]{0,3}\b[^)]*\))|(czyt[\p{L}]{0,3}\b\s+[\p{L}\-\. ]+)/giu;
     q = q.replace(readerRegex, '').trim();
 
     // 2. Count hyphens and extract author/title
@@ -170,18 +187,33 @@ app.get('/search', async (req, res) => {
   // Strategy: compare match.title to query (case-insensitive) for titleSimilarity.
   // If author provided, compute best author similarity across match.authors and combine: 0.6*title + 0.4*author.
   // Otherwise use titleSimilarity only. On tie, prefer audiobooks over books.
-  const cleanedQuery = q.trim().toLowerCase();
-  const cleanedAuthor = author ? author.trim().toLowerCase() : '';
+  // Apply removePolishDiacritics here so comparisons are accent-insensitive
+  const cleanedQuery = removePolishDiacritics(q).trim().toLowerCase();
+  const cleanedAuthor = author ? removePolishDiacritics(author).trim().toLowerCase() : '';
   const titleWeight = (config.global && typeof config.global.titleWeight === 'number') ? (config.global.titleWeight / 100) : 0.6; // fraction
   const authorWeight = 1 - titleWeight;
 
   const scored = combined.map(m => {
-    const title = (m.title || '').toString().toLowerCase();
-    const titleSimilarity = stringSimilarity.compareTwoStrings(title, cleanedQuery);
+  // Bypass for quoted strings.
+  if (isQuoted) {
+      let identifiers = m.identifiers || {};
+      if (!identifiers.isbn || identifiers.isbn === '') {
+        identifiers = { ...identifiers, isbn: '0' }; // Keep consistency for downstream filters
+      }
+      return { ...m, similarity: 1.0, identifiers };
+    }
+
+    // Normalize provider's title on-the-fly for comparison
+    const titleForComparison = removePolishDiacritics((m.title || '').toString()).toLowerCase();
+    const titleSimilarity = stringSimilarity.compareTwoStrings(titleForComparison, cleanedQuery);
 
     let combinedSimilarity = titleSimilarity;
     if (cleanedAuthor && Array.isArray(m.authors) && m.authors.length) {
-      const bestAuthorSim = Math.max(...m.authors.map(a => stringSimilarity.compareTwoStrings((a||'').toLowerCase(), cleanedAuthor)));
+      // Normalize provider's authors on-the-fly for comparison
+      const bestAuthorSim = Math.max(...m.authors.map(a => {
+        const authorForComparison = removePolishDiacritics((a || '').toString()).toLowerCase();
+        return stringSimilarity.compareTwoStrings(authorForComparison, cleanedAuthor);
+      }));
       combinedSimilarity = (titleSimilarity * titleWeight) + (bestAuthorSim * authorWeight);
     }
 
@@ -190,7 +222,6 @@ app.get('/search', async (req, res) => {
     if (!identifiers.isbn || identifiers.isbn === '') {
       combinedSimilarity *= 0.99;
     }
-
 
     // Assign fake ISBN '0' if similarity is high and ISBN is missing
     let isbn = identifiers.isbn;

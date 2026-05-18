@@ -319,8 +319,8 @@ class StorytelProvider {
                 return {
                     id: bookId,
                     title: candidate.name || candidate.title || null,
-                    authors: candidate.authors || (candidate.authorsAsString ? [candidate.authorsAsString] : []),
-                    url: null, // Storytel uses API for details
+					authors: Array.isArray(candidate.authors) ? candidate.authors.map(a => typeof a === 'object' ? (a.name || String(a)) : a) : (candidate.authorsAsString ? [candidate.authorsAsString] : []), 
+					url: null, // Storytel uses API for details
                     source: { id: 'storytel', description: 'Storytel', link: 'https://storytel.com' },
                     type: candidate.type || 'audiobook',
                     // Save the raw candidate so getFullMetadata can use it if needed
@@ -367,16 +367,13 @@ class StorytelProvider {
      * Provider-level wrapper to return full ABS-formatted metadata for a snippet.
      * Backbone will call this for candidates.
      */
-    async getFullMetadata(snippet) {
-        if (!snippet) return null;
-        const raw = snippet._raw;
-        if (!raw) {
-            // fallback: try to fetch book details by id
-            return this.formatBookMetadata(await this.getBookDetails(snippet.id, this.locale));
-        }
-        return this.formatBookMetadata(raw);
-    }
-
+	async getFullMetadata(snippet) {
+		if (!snippet) return null;
+			// Always fetch full details from the API because search snippets lack the .slb fields
+			const details = await this.getBookDetails(snippet.id, this.locale);
+			if (!details) return null;
+		return this.formatBookMetadata(details);
+	}
 }
 
 module.exports = StorytelProvider;
