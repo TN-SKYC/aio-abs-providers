@@ -55,11 +55,18 @@ Searches multiple providers (lubimyczytac, audioteka, storytel, ...) and returns
   - GET `/admin/config` — read config
   - PUT `/admin/config` — save config (body: full config JSON)
   - GET `/admin/providers/meta` — provider metadata (supported languages, etc.)
-  - GET `/search?query=...&author=...&lang=...` — perform search, returns `matches` array (merged items include `_provider: "merged"` and `_mergedFrom` / `_mergedFieldSources`)
+  - GET `/search?query=...&author=...&lang=...&duration=...` — perform search, returns `matches` array (merged items include `_provider: "merged"` and `_mergedFrom` / `_mergedFieldSources`)
+    - `query` (required) — book title/query to search for
+    - `author` (optional) — author name
+    - `lang` (optional) — language preference
+    - `duration` (optional) — local audiobook duration in minutes; StoryTel results with exact duration match get +0.35 similarity boost
 
 Example search via CLI:
 ```bash
 curl 'http://localhost:4000/search?query=Zrost&author=Robert%20Ma%C5%82ecki' -s | jq '.matches | .[0:5]'
+
+# With local duration (StoryTel results matching exact duration get boosted)
+curl 'http://localhost:4000/search?query=Zrost&author=Robert%20Ma%C5%82ecki&duration=540' -s | jq '.matches | .[0:5]'
 ```
 ---
 ## Running with Docker / docker-compose

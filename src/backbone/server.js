@@ -63,6 +63,7 @@ app.get('/search', async (req, res) => {
   // Clean input: query (title) and author
   let q = req.query.query;
   let author = req.query.author;
+  let localDuration = req.query.duration ? parseInt(req.query.duration, 10) : null; // duration in minutes
   if (!q) return res.status(400).json({ error: 'query required' });
 
   // Track if the input was quoted
@@ -188,7 +189,6 @@ app.get('/search', async (req, res) => {
   // If author provided, compute best author similarity across match.authors and combine: 0.6*title + 0.4*author.
   // Otherwise use titleSimilarity only. On tie, prefer audiobooks over books.
   // Apply removePolishDiacritics here so comparisons are accent-insensitive
-  console.log(`[search] Original query: "${q}" | Original author: "${author}"`);
   const cleanedQuery = removePolishDiacritics(q).trim().toLowerCase();
   const cleanedAuthor = author ? removePolishDiacritics(author).trim().toLowerCase() : '';
   const titleWeight = (config.global && typeof config.global.titleWeight === 'number') ? (config.global.titleWeight / 100) : 0.6; // fraction
@@ -230,6 +230,13 @@ app.get('/search', async (req, res) => {
       isbn = '0';
       identifiers = { ...identifiers, isbn };
       console.log(`[isbn] Assigned fake ISBN '0' to: ${m.title} | author(s): ${m.authors ? m.authors.join(', ') : ''} | similarity: ${combinedSimilarity}`);
+    }
+
+    // Boost StoryTel results with exact duration match
+    if (m._provider === 'storytel' && localDuration !== null && m.duration === localDuration) {
+      const originalSimilarity = combinedSimilarity;
+      combinedSimilarity = Math.min(1.0, combinedSimilarity + 0.35); // Boost by 0.35, capped at 1.0
+      console.log(`[duration-boost] StoryTel match: ${m.title} | Local duration: ${localDuration}min | Provider duration: ${m.duration}min | Similarity boosted from ${originalSimilarity.toFixed(3)} to ${combinedSimilarity.toFixed(3)}`);
     }
 
     return { ...m, similarity: combinedSimilarity, identifiers };
