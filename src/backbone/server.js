@@ -62,6 +62,7 @@ app.get('/search', async (req, res) => {
 
   // Clean input: query (title) and author
   let q = req.query.query;
+  console.log(`[search] Input: "${q}"`);
   let author = req.query.author;
   let localDuration = req.query.duration ? parseInt(req.query.duration, 10) : null; // duration in minutes
   if (!q) return res.status(400).json({ error: 'query required' });
@@ -182,6 +183,9 @@ app.get('/search', async (req, res) => {
       providerSnippetCounts[a.provider] = (a.matches && a.matches.length) || 0;
     }
     console.log('[search] provider snippets:', JSON.stringify(providerSnippetCounts));
+    if (localDuration !== null) {
+      console.log(`[search] Local duration passed: ${localDuration}min`);
+    }
   } catch (e) { /* ignore logging errors */ }
 
   // Compute unified similarity for each match across all providers.
@@ -233,10 +237,18 @@ app.get('/search', async (req, res) => {
     }
 
     // Boost StoryTel results with exact duration match
-    if (m._provider === 'storytel' && localDuration !== null && m.duration === localDuration) {
-      const originalSimilarity = combinedSimilarity;
-      combinedSimilarity = Math.min(1.0, combinedSimilarity + 0.35); // Boost by 0.35, capped at 1.0
-      console.log(`[duration-boost] StoryTel match: ${m.title} | Local duration: ${localDuration}min | Provider duration: ${m.duration}min | Similarity boosted from ${originalSimilarity.toFixed(3)} to ${combinedSimilarity.toFixed(3)}`);
+    if (m._provider === 'storytel') {
+      if (localDuration !== null) {
+        const providerDuration = typeof m.duration === 'string' ? parseInt(m.duration, 10) : m.duration;
+        console.log(`[duration-check] StoryTel: "${m.title}" | Local: ${localDuration}min | Provider: ${m.duration} | Parsed: ${providerDuration} | Match: ${providerDuration === localDuration}`);
+        if (!Number.isNaN(providerDuration) && providerDuration === localDuration) {
+          const originalSimilarity = combinedSimilarity;
+          combinedSimilarity = Math.min(1.0, combinedSimilarity + 0.35); // Boost by 0.35, capped at 1.0
+          console.log(`[duration-boost] BOOSTED: ${m.title} | Similarity: ${originalSimilarity.toFixed(3)} → ${combinedSimilarity.toFixed(3)}`);
+        }
+      } else {
+        console.log(`[duration-check] StoryTel: "${m.title}" has duration=${m.duration} but NO local duration was provided`);
+      }
     }
 
     return { ...m, similarity: combinedSimilarity, identifiers };
