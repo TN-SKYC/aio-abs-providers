@@ -320,7 +320,18 @@ app.get('/search', async (req, res) => {
         const results = await inst.mapWithConcurrency(toFetch, async (match) => {
           try {
             if (typeof inst.getFullMetadata === 'function') {
-              return await inst.getFullMetadata(match);
+              const fullMeta = await inst.getFullMetadata(match);
+              // Preserve snippet-phase fields from match
+              if (fullMeta && match) {
+                if (!fullMeta._provider) fullMeta._provider = match._provider;
+                if (fullMeta.similarity === undefined && typeof match.similarity === 'number') {
+                  fullMeta.similarity = match.similarity;
+                }
+                if (!fullMeta._providerPriority && typeof match._providerPriority === 'number') {
+                  fullMeta._providerPriority = match._providerPriority;
+                }
+              }
+              return fullMeta;
             }
             return match;
           } catch (err) {
@@ -330,6 +341,10 @@ app.get('/search', async (req, res) => {
         }, limit);
         // Merge fetched results back with matches that were already full
         const fetched = results.filter(Boolean);
+        // Ensure _provider field on all fetched results
+        for (const item of fetched) {
+          if (!item._provider) item._provider = providerName;
+        }
         const alreadyFull = matches.filter(m => m._fullFetched);
         return [...alreadyFull, ...fetched];
       } catch (err) {
@@ -346,7 +361,17 @@ app.get('/search', async (req, res) => {
       try {
         if (typeof inst.getFullMetadata === 'function') {
           const full = await inst.getFullMetadata(match);
-          if (full) out.push(full);
+          if (full) {
+            // Preserve snippet-phase fields from match
+            if (!full._provider) full._provider = providerName;
+            if (full.similarity === undefined && typeof match.similarity === 'number') {
+              full.similarity = match.similarity;
+            }
+            if (!full._providerPriority && typeof match._providerPriority === 'number') {
+              full._providerPriority = match._providerPriority;
+            }
+            out.push(full);
+          }
         } else {
           out.push(match);
         }
@@ -360,29 +385,15 @@ app.get('/search', async (req, res) => {
   const nested = await Promise.all(fullFetchPromises);
   const fullResults = nested.flat();
 
-  // Ensure _provider field is preserved on all full results (some providers lose it)
-  for (const item of fullResults) {
-    if (!item._provider && item._raw && item._raw.AId) {
-      // StoryTel-specific: restore provider from raw data
-      item._provider = 'storytel';
-    }
-    // Fallback: if we still don't have _provider, try to infer from source
-    if (!item._provider && item.source && item.source.id) {
-      item._provider = item.source.id;
-    }
-  }
-
   // Boost StoryTel results with exact duration match (after full metadata fetch when duration is available)
   if (localDuration !== null) {
     for (const item of fullResults) {
-      if (item._provider === 'storytel') {
+      if (item._provider === 'storytel' && item.duration !== undefined) {
         const providerDuration = typeof item.duration === 'string' ? parseInt(item.duration, 10) : item.duration;
         if (!Number.isNaN(providerDuration) && providerDuration === localDuration) {
-          const originalSimilarity = item.similarity;
-          item.similarity = Math.min(1.0, item.similarity + 0.35); // Boost by 0.35, capped at 1.0
-          console.log(`[duration-boost] StoryTel: "${item.title}" | Local: ${localDuration}min | Provider: ${providerDuration}min | Similarity: ${originalSimilarity.toFixed(3)} → ${item.similarity.toFixed(3)}`);
-        } else if (item.duration) {
-          console.log(`[duration-check] StoryTel: "${item.title}" | Local: ${localDuration}min | Provider: ${providerDuration}min | No match`);
+          const originalSimilarity = item.similarity || 0.5; // Default if missing
+          item.similarity = Math.min(1.0, (item.similarity || 0.5) + 0.35); // Boost by 0.35, capped at 1.0
+          console.log(`[duration-boost] StoryTel: "${item.title}" | Similarity: ${originalSimilarity.toFixed(3)} → ${item.similarity.toFixed(3)}`);
         }
       }
     }
