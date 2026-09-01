@@ -360,6 +360,18 @@ app.get('/search', async (req, res) => {
   const nested = await Promise.all(fullFetchPromises);
   const fullResults = nested.flat();
 
+  // Ensure _provider field is preserved on all full results (some providers lose it)
+  for (const item of fullResults) {
+    if (!item._provider && item._raw && item._raw.AId) {
+      // StoryTel-specific: restore provider from raw data
+      item._provider = 'storytel';
+    }
+    // Fallback: if we still don't have _provider, try to infer from source
+    if (!item._provider && item.source && item.source.id) {
+      item._provider = item.source.id;
+    }
+  }
+
   // Boost StoryTel results with exact duration match (after full metadata fetch when duration is available)
   if (localDuration !== null) {
     for (const item of fullResults) {
