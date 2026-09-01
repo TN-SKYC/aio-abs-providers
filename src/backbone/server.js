@@ -236,21 +236,6 @@ app.get('/search', async (req, res) => {
       console.log(`[isbn] Assigned fake ISBN '0' to: ${m.title} | author(s): ${m.authors ? m.authors.join(', ') : ''} | similarity: ${combinedSimilarity}`);
     }
 
-    // Boost StoryTel results with exact duration match
-    if (m._provider === 'storytel') {
-      if (localDuration !== null) {
-        const providerDuration = typeof m.duration === 'string' ? parseInt(m.duration, 10) : m.duration;
-        console.log(`[duration-check] StoryTel: "${m.title}" | Local: ${localDuration}min | Provider: ${m.duration} | Parsed: ${providerDuration} | Match: ${providerDuration === localDuration}`);
-        if (!Number.isNaN(providerDuration) && providerDuration === localDuration) {
-          const originalSimilarity = combinedSimilarity;
-          combinedSimilarity = Math.min(1.0, combinedSimilarity + 0.35); // Boost by 0.35, capped at 1.0
-          console.log(`[duration-boost] BOOSTED: ${m.title} | Similarity: ${originalSimilarity.toFixed(3)} → ${combinedSimilarity.toFixed(3)}`);
-        }
-      } else {
-        console.log(`[duration-check] StoryTel: "${m.title}" has duration=${m.duration} but NO local duration was provided`);
-      }
-    }
-
     return { ...m, similarity: combinedSimilarity, identifiers };
   });
 
@@ -374,6 +359,22 @@ app.get('/search', async (req, res) => {
 
   const nested = await Promise.all(fullFetchPromises);
   const fullResults = nested.flat();
+
+  // Boost StoryTel results with exact duration match (after full metadata fetch when duration is available)
+  if (localDuration !== null) {
+    for (const item of fullResults) {
+      if (item._provider === 'storytel') {
+        const providerDuration = typeof item.duration === 'string' ? parseInt(item.duration, 10) : item.duration;
+        if (!Number.isNaN(providerDuration) && providerDuration === localDuration) {
+          const originalSimilarity = item.similarity;
+          item.similarity = Math.min(1.0, item.similarity + 0.35); // Boost by 0.35, capped at 1.0
+          console.log(`[duration-boost] StoryTel: "${item.title}" | Local: ${localDuration}min | Provider: ${providerDuration}min | Similarity: ${originalSimilarity.toFixed(3)} → ${item.similarity.toFixed(3)}`);
+        } else if (item.duration) {
+          console.log(`[duration-check] StoryTel: "${item.title}" | Local: ${localDuration}min | Provider: ${providerDuration}min | No match`);
+        }
+      }
+    }
+  }
 
   // Sort final results same as before (similarity desc, audiobook preference, provider priority)
   fullResults.sort((a, b) => {
