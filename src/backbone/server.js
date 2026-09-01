@@ -188,6 +188,7 @@ app.get('/search', async (req, res) => {
   // If author provided, compute best author similarity across match.authors and combine: 0.6*title + 0.4*author.
   // Otherwise use titleSimilarity only. On tie, prefer audiobooks over books.
   // Apply removePolishDiacritics here so comparisons are accent-insensitive
+  console.log(`[search] Original query: "${q}" | Original author: "${author}"`);
   const cleanedQuery = removePolishDiacritics(q).trim().toLowerCase();
   const cleanedAuthor = author ? removePolishDiacritics(author).trim().toLowerCase() : '';
   const titleWeight = (config.global && typeof config.global.titleWeight === 'number') ? (config.global.titleWeight / 100) : 0.6; // fraction
